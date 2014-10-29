@@ -1,0 +1,183 @@
+#!/usr/bin/python
+# coding=UTF-8
+
+import re
+import curses
+from colors import *
+from argparse import *
+import feedparser
+import webbrowser
+import os
+import threading
+
+status_text = "Loading..."
+loading_mode = True
+app_started = False
+current_article = 0
+news = []
+
+# Variables for convert Vietnamese text
+INTAB = "ạảãàáâậầấẩẫăắằặẳẵóòọõỏôộổỗồốơờớợởỡéèẻẹẽêếềệểễúùụủũưựữửừứíìịỉĩýỳỷỵỹđẠẢÃÀÁÂẬẦẤẨẪĂẮẰẶẲẴÓÒỌÕỎÔỘỔỖỒỐƠỜỚỢỞỠÉÈẺẸẼÊẾỀỆỂỄÚÙỤỦŨƯỰỮỬỪỨÍÌỊỈĨÝỲỶỴỸĐ"
+INTAB = [ch.encode('utf8') for ch in unicode(INTAB, 'utf8')]
+OUTTAB = "a" * 17 + "o" * 17 + "e" * 11 + "u" * 11 + "i" * 5 + "y" * 5 + "d" + \
+         "A" * 17 + "O" * 17 + "E" * 11 + "U" * 11 + "I" * 5 + "Y" * 5 + "D"
+r = re.compile("|".join(INTAB))
+replaces_dict = dict(zip(INTAB, OUTTAB))
+
+# Define argument list for the app
+parser = ArgumentParser(description=on_red(" CLI") + light_red("news") + grey(" - ") + white("hacker's world in your terminal") + "\n" + grey('------------------------------------------'))
+parser.add_argument("-l", "--list", action="store_true", help="List all source")
+parser.add_argument("-a", "--add", help="Add new source")
+parser.add_argument("-r", "--remove", help="Remove source")
+args = parser.parse_args()
+
+
+"""
+Functions
+"""
+
+
+def load_config():
+    global status_text
+    status_text = "Loading source list..."
+    f = open(os.path.dirname(os.path.abspath(__file__)) + "/sources.json")
+    source_urls = eval(f.read())
+    status_text = "Total %s sources" % len(source_urls['urls'])
+    f.close()
+    return source_urls
+
+
+def save_config(sr):
+    f = open(os.path.dirname(os.path.abspath(__file__)) + "/sources.json", "w")
+    f.write(str(sr))
+    f.close()
+
+
+def strip_vnese(utf8_str):
+    return r.sub(lambda m: replaces_dict[m.group(0)], utf8_str)
+
+
+def strip_html(raw_html):
+    clean_r = re.compile('<.*?>')
+    clean_text = re.sub(clean_r, '', raw_html)
+    return "\n".join([line for line in clean_text.split('\n') if line.strip() != ''])
+
+
+def load_all():
+    global status_text
+    global loading_mode
+    loading_mode = True
+    source_urls = load_config()
+    # hack urls
+    for url in source_urls['urls']:
+        status_text = "Loading " + url
+        rss = feedparser.parse(url)
+        feeds = rss.entries
+        for entry in feeds:
+            status_text = "Add " + entry.link
+            news.append({
+                'title': strip_vnese(entry.title.encode("utf8")),
+                'url': entry.link,
+                'html': strip_vnese(strip_html(entry.description).encode("utf8")) + " "  # Trick: avoid null html
+            })
+    loading_mode = False
+
+
+def list_source():
+    print "Source list:"
+    source_urls = load_config()
+    for url in source_urls["urls"]:
+        print "- " + light_green("%s" % url)
+
+
+def add_source(url):
+    source_urls = load_config()
+    if url not in source_urls["urls"]:
+        source_urls["urls"].add(url)
+        save_config(source_urls)
+        print light_green("URL: %s added to source list!" % url)
+    else:
+        print light_red("URL %s already exist!" % url)
+
+
+def delete_source(url):
+    source_urls = load_config()
+    if url in source_urls["urls"]:
+        source_urls["urls"].remove(url)
+        save_config(source_urls)
+        print light_green("URL: %s removed!" % url)
+    else:
+        print light_red("URL: %s not found!" % url)
+
+
+def draw_articles(src):
+    global status_text
+    global loading_mode
+    global app_started
+    maxy, maxx = src.getmaxyx()
+    if not loading_mode:
+        app_started = True
+        src.clear()
+        try:
+            src.addstr(news[current_article]['title'] + "\n-------------------------------------------\n", curses.color_pair(1) | curses.A_BOLD)
+            src.addstr(news[current_article]['url'] + "\n-------------------------------------------\n", curses.color_pair(2))
+            src.addstr(news[current_article]['html'] + " ", curses.color_pair(3))
+        except curses.error:
+            pass
+        src.addstr(maxy - 1, 0, "[%d/%d] UP/DOWN: Navigate - SPACE: Go to URL - ESC: Exit" % (current_article + 1, len(news)), curses.color_pair(4) | curses.A_DIM)
+        src.refresh()
+    else:
+        src.clear()
+        src.addstr(maxy - 1, 0, status_text + " ", curses.color_pair(4) | curses.A_DIM)
+        src.refresh()
+
+"""
+Main program
+"""
+
+if args.list:
+    list_source()
+elif args.add:
+    add_source(args.add)
+elif args.remove:
+    delete_source(args.remove)
+else:
+    src = curses.initscr()
+    curses.start_color()
+    curses.use_default_colors()
+    curses.noecho()
+    curses.cbreak()
+    src.keypad(True)
+
+    curses.init_pair(1, 231, -1)
+    curses.init_pair(2, 244, -1)
+    curses.init_pair(3, 15, -1)
+    curses.init_pair(4, curses.COLOR_BLACK, curses.COLOR_WHITE)
+
+    running = True
+
+    thread_load = threading.Thread(target=load_all)
+    thread_load.start()
+
+    while running:
+        draw_articles(src)
+
+        if app_started:
+            c = src.getch()
+            if c == 32:
+                webbrowser.open(news[current_article]['url'], new=2)
+
+            if c == 27:
+                # Restore everything after exit
+                curses.nocbreak()
+                src.keypad(False)
+                curses.echo()
+                curses.endwin()
+                running = False
+            if c == 259: # UP
+                if current_article > 0:
+                    current_article -= 1
+
+            if c == 258: # Down
+                if current_article < len(news) - 1:
+                    current_article += 1
