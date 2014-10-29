@@ -45,6 +45,7 @@ Press SPACE to open current article in browser.
 
 
 ## Todo: 
+- Create setup script
 - Themes support
 - Unicode support
 - Strip HTML encoded strings in articles content
