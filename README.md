@@ -18,6 +18,12 @@ Clone this repository to your computer. Run this command:
 
 `chmod +x news`
 
+*Optional:* If you want to run `news` command directly in terminal window instead of `./news`, just open your `~/.bash_profile` file and add current directory in the new line, for example:
+
+`export PATH=$PATH:'<your-current-clinews-directory>'`
+
+And restart terminal
+
 ## Usage:
 
 #### Read news:
