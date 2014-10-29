@@ -1,4 +1,4 @@
-CLINews
+CLInews
 =======
 
 News reader for hackers, geek, and command-line fanatics =]] written in Python
@@ -20,20 +20,29 @@ Clone this repository to your computer. Run this command:
 
 ## Usage:
 
-### Read news:
+#### Read news:
 `./news`
 
-### List all added sources:
+Press UP/DOWN to switch articles.
+
+Press SPACE to open current article in browser.
+
+#### List all added sources:
 `./news -l`
 
-### Add new (RSS) source:
+#### Add new (RSS) source:
 `./news -a <rss-url>`
 
-### Remove exists (RSS) source:
+#### Remove exists (RSS) source:
 `./news -r <rss-url>`
 
-### Display help:
+#### Display help:
 `./news -h`
+
+## Libraries used:
+- [Rainbow Stream](https://github.com/DTVD/rainbowstream)'s colors.py
+- [Universal Feed Parser](https://pypi.python.org/pypi/feedparser)
+
 
 ## Todo: 
 - Themes support
